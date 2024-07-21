@@ -8,21 +8,21 @@
 
 #create config file if it doesn't exist
 if [ ! -f "duckdns.config" ] ; then
-  echo "Subdomain='subdomain'  #do not include duckdns.org, just the subdomain. can be comma separated (no spaces) list of domains" > duckdns.config
+  echo "Subdomain='subdomain'  #do not include duckdns.org, just the subdomain. can be comma separated (no spaces) list of domains for duckdns command, but script does not fully support" > duckdns.config
   echo "Token=''" >> duckdns.config
-  echo "Email=root #will only work if an email server is set up, can be user name or email address"
+  echo "Email=root #will only work if an email server is set up, can be user name or email address" >> duckdns.config
   echo "NewIP=''" >> duckdns.config
   echo "" >> duckdns.config
   echo "EmailonMatches=0  #Email if script finds that current IP and Subdomain IP already match. 0=no 1=yes" >> duckdns.config
   echo "EmailonSuccess=1  #Email if script tries to change IP and API says good. 0=no 1=yes" >> duckdns.config
   echo "EmailonFailure=1  #Email if script tries to change IP and API says anything other than good. 0=no 1=yes" >> duckdns.config
   echo "" >> duckdns.config
-  echo "Logfile='. ~/duckdns.log'" >> duckdns.config
-  echo "Responsefile='. ~/duckdns.response'"
-  echo "Number of Failures:" >> duckdns.config
-  echo "0" >> duckdns.config
+  echo "Logfile=~/duckdns.log #no quotes or spaces" >> duckdns.config
+  echo "Responsefile=~/duckdns.response #no quotes or spaces" >> duckdns.config
+  echo "Failures=0" >> duckdns.config
   echo ""
   echo "duckdns.config created, please open the file, insert the values for all variables and run again."
+  echo ""
   #set ownership of created file to chmod 600
   chmod 600 duckdns.config
  exit 0
@@ -30,7 +30,6 @@ fi
 
 #load config file variables - if not run in home directory, must update location
    . ~/duckdns.config
-
 
 #Stop emails from sending if no email has been provided.
 if [[ -z $Email ]]; then EmailonMatches=0 ; EmailonSuccess=0 ; EmailonFailure=0 ; fi
@@ -41,12 +40,6 @@ if [[ -z $Token ]]; then echo "Token not provided"; exit 1; fi
 
 
 ##### Pull local IP
-
-#Get Interface Name
-Interface=$(ip route get 1.1.1.1 | awk '{print$5}')
-      #2nd option if first one doesn't work
-      #Interface=$(ip route get 1.1.1.1 | grep -Po '(?<=dev\s)\w+' | cut -f1 -d ' ')
-
 
 #If a new IP is not provided, Pull WAN IP from the network interface. Should work if appliance is directly connected or through router.
 if [[ -z $NewIP ]]; then NewIP=$(wget -qO - icanhazip.com); fi
@@ -60,15 +53,17 @@ if [[ -z $NewIP ]]; then NewIP=$(wget -qO - icanhazip.com); fi
 
 
 ##### Pull duckdns IP
-DuckIP=$(host $Subdomain | awk '/has address/ { print $4 ; exit ; }')
+DuckIP=$(host "www.$Subdomain.duckdns.org" | awk '/has address/ { print $4 ; exit ; }')
       #2nd option if first one doesn't work
       #DuckIP=$(nslookup $Subdomain | awk 'FNR ==5 {print$3}')
 
+
     #exit and email error if Subdomain IP is still blank
-      if [[ -z $DuckIP ]]; then echo "DDNS for $Subdomain was not able to resolve the current Subdomain IP." | mail -s "DDNS for $Subdomain Update ::ERROR::" "$Email"
-              exit; fi
-
-
+      if [[ -z $DuckIP ]]; then
+        echo "$(date "+%Y.%m.%d %H:%M:%S") DDNS for $Subdomain was not able to resolve the current Subdomain IP." >> "$Logfile"
+        echo "DDNS for $Subdomain was not able to resolve the current Subdomain IP." | mail -s "DDNS for $Subdomain Update ::ERROR::" "$Email"
+        exit
+      fi
 
 ##### Test if IPs the same, update if not, send emails as necessary
 
